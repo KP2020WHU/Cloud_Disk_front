@@ -12,5 +12,6 @@ Vue.use(WlExplorer);
 
 Vue.config.productionTip = false
 new Vue({
-  render: h => h(App),
-}).$mount('#app')
+    el: "#app",
+    render: h => h(App),
+})
