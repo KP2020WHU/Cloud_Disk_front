@@ -1,6 +1,73 @@
 <template>
   <div id="app">
-    <router-view></router-view>
+    <wlExplorer
+      ref="wl-explorer-cpt"
+      :header-dropdown="headerHandle"
+      :upload-options="uploadOptions"
+      :columns="file_table_columns"
+      :all-path="all_folder_list"
+      :is-folder-fn="isFolderFn"
+      :folderType="rource_type"
+      :data="file_table_data"
+      :props="explorer_prop"
+      size="small"
+      @handleFolder="handleFolder"
+      @upload="fileUpload"
+      @download="download"
+      @search="fileSearch"
+      @del="fileDel"
+      @closeFade="closeOtherLayout(fade)"
+    >
+      <!-- 操作文件夹滑入区 -->
+      <fadeIn v-show="fade.folder">
+        <h3 class="edit-header">
+          <p>{{ folder_form.Id ? "编辑" : "新增" }}文件夹</p>
+        </h3>
+        <el-scrollbar class="scroll">
+          <el-form
+            size="medium"
+            ref="folder_form"
+            label-position="top"
+            :model="folder_form"
+            :rules="folder_rules"
+            class="folder_form rule-form"
+            @keyup.enter.native="submitFolderFrom('folder_form')"
+          >
+            <el-form-item label="文件路径" prop="ParentId">
+              <WlTreeSelect
+                class="u-full"
+                nodeKey="Id"
+                placeholder="请选择文件路径"
+                :props="tree_select_prop"
+                :data="tree_folder_list"
+                v-model="folder_form.ParentId"
+              ></WlTreeSelect>
+            </el-form-item>
+            <el-form-item label="文件夹名称 " prop="Name">
+              <el-input
+                v-model="folder_form.Name"
+                placeholder="请输入文件夹名称"
+              ></el-input>
+            </el-form-item>
+            <el-form-item label="备注说明" prop="Describe">
+              <el-input
+                :rows="3"
+                type="textarea"
+                v-model="folder_form.Describe"
+                placeholder="请输入备注说明"
+              ></el-input>
+            </el-form-item>
+          </el-form>
+        </el-scrollbar>
+        <div class="submit-btn-box">
+          <submit-btn
+            @btn="submitFolderFrom('folder_form')"
+            :status="load.folder"
+          ></submit-btn>
+          <el-button size="medium" @click="fade.folder = false">取消</el-button>
+        </div>
+      </fadeIn>
+    </wlExplorer>
   </div>
 </template>
 
