@@ -104,7 +104,7 @@ function arrayToTree(
  */
 function splicParentsUntil(data, coordinate, options = {
     pathName: 'name', // 所要拼接字段
-    pathConnector: '\\', // 连接符 
+    pathConnector: '/', // 连接符 
     pathId: "Id", // 数据源匹配字段 
     pathParents: "parents",
     pathIdentityId: "identityId",
@@ -177,6 +177,34 @@ function download(res, name) {
     }
 }
 
+function getUrl(res, name) {
+    // 错误处理
+    if (res.status != 200) {
+        let reader = new FileReader();
+        reader.readAsText(res.data, 'utf-8');
+        reader.onload = function() {
+            // let json_data = JSON.parse(reader.result);
+            Message({
+                showClose: true,
+                message: "文件不存在！",
+                // message: json_data.Message,
+                type: "error"
+            });
+        }
+        return;
+    }
+    // url处理
+    try {
+        let blob = new Blob([res.data], {
+            type: res.headers["content-type"]
+        });
+        let url = URL.createObjectURL(blob);
+        return url;
+    } catch (e) {
+
+    }
+}
+
 /**
  * 关闭其他弹出类视图函数
  * 用于切换侧滑区域内容
@@ -196,4 +224,5 @@ export {
     splicParentsUntil, // 从坐标值拼接指定字段到祖先元素
     download, // download
     closeOtherLayout, // 关闭其他弹出类视图函数
+    getUrl
 }

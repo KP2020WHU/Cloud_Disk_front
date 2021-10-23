@@ -20,7 +20,7 @@
         :on-error="handleError"
         :on-exceed="handleExceed"
         :on-success="handleSuccess"
-        >
+      >
         <i class="el-icon-upload"></i>
         <div class="el-upload__text">
           将文件拖到此处，或
@@ -72,19 +72,19 @@ export default {
     // 上传地址
     url: {
       type: String,
-      default: "" // 通用上传地址
+      default: "", // 通用上传地址
     },
     // 上传参数
     options: Object,
     // 自动上传
     autoUpload: {
       type: Boolean,
-      default: false
+      default: false,
     },
     // 上传前校验
     reg: {
       type: Boolean,
-      default: true
+      default: true,
     },
     // 自定义校验函数
     regFuc: Function,
@@ -94,19 +94,21 @@ export default {
   methods: {
     // 手动上传
     toUpload() {
+      //   console.log("headers: ", headers);
       this.$refs.upload.submit();
-      console.log("to Upload")
+      //   debugger;
+      console.log("to Upload");
     },
     // 上传前验证
     beforeUpload(file) {
-      this.$emit('beforeUpload', file);
+      this.$emit("beforeUpload", file);
       // 不校验
       if (!this.reg) return true;
       // 自定义校验
       if (this.regFuc) return this.regFuc(file);
     },
     // 上传成功回调
-    handleSuccess(res, file,fileList) {
+    handleSuccess(res, file, fileList) {
       this.$emit("uploadSuccess", res, file, fileList);
     },
     // 上传失败回调
@@ -122,7 +124,7 @@ export default {
     // 上传参数
     upOptions() {
       return this.options;
-    }
+    },
   },
 };
 </script>

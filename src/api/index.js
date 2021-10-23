@@ -26,10 +26,11 @@ function getAllFoldersApi(data) {
 }
 
 // 6删除文件|文件夹
-function delFileApi(path) {
+function delFileApi(files) {
     return request({
-        url: "/cloudfiles/DeleteCloudFile",
-        params: { path: path }
+        method: "POST",
+        url: "/cloudfiles/DeleteCloudFiles",
+        data: files
     });
 }
 
@@ -54,21 +55,37 @@ function fileMoveApi(sourcePath, destPath) {
     });
 }
 
-function testApi(data) {
+function AuthenticateApi(id, password) {
     return request({
         method: "POST",
-        url: "./cloudfiles/download",
-        params: { filePath: "Users/Peng/root/UniOpmClient_Setup for win10.exe" },
-        data
+        url: "/users/authenticate",
+        data: { UserId: id, Passwd: password }
     })
 }
 
+function SignUpApi(id, password) {
+    return request({
+        method: "POST",
+        url: "/users/SignUp",
+        data: { UserId: id, Passwd: password }
+    })
+}
+
+
 //? it seems that we don't actually upload our files here
-function fileUpload(data) {
+function fileUploadApi(data) {
     return request({
         method: "POST",
         url: "./cloudfiles/UploadCloudFile",
         data
+    })
+}
+
+
+function getDiskInfoApi() {
+    return request({
+        method: "GET",
+        url: "./Users/GetUserInfo",
     })
 }
 
@@ -79,6 +96,9 @@ export {
     delFileApi, // 6删除文件|文件夹
     downloadDataApi, // 8下载数据
     fileMoveApi, // 9文件夹移动
-    testApi,
-    fileUpload
+    // testApi,
+    fileUploadApi,
+    AuthenticateApi,
+    SignUpApi,
+    getDiskInfoApi
 };

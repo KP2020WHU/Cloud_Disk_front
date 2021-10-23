@@ -95,11 +95,14 @@
           />
           {{ file.path }}
         </div>
+        <!--  
+            输入的值与file.path绑定 
+         -->
         <el-autocomplete
           class="u-full"
           ref="file-path-ipt"
           placeholder="请输入文件路径"
-          v-model="file.path"
+          v-model="file.Path"
           v-if="layout.edit_path"
           @keyup.enter.native="filePathChange"
           @select="filePathChange"
@@ -280,8 +283,8 @@
         v-show="layout.view"
         ref="file-view"
         class="file-view-components"
-        :previewType="previewType"
-        :previewOptions="previewOptions"
+        :previewType.sync="previewType"
+        :previewOptions.sync="previewOptions"
         @close="layout.view = false"
       ></file-view>
     </template>
@@ -360,8 +363,8 @@ import submitBtn from "@/components/submit-btn.vue"; // 导入防抖组件
 import fileView from "@/components/file-view.vue"; // 导入预览组件
 import fadeIn from "@/components/fade-in.vue"; // 引入滑入组件
 import uploadItem from "@/components/upload-item"; // 导入导入组件
-import { arrayToTree, splicParentsUntil, download } from "@/util"; // 导入组装树函数、拼接路径函数
-const guid = "00000000-0000-0000-0000-000000000000";
+import { arrayToTree, splicParentsUntil, download, getUrl } from "@/util"; // 导入组装树函数、拼接路径函数
+const root = "./";
 export default {
   name: "wlExplorer",
   components: { submitBtn, fileView, fadeIn, uploadItem },
@@ -373,7 +376,7 @@ export default {
         upload: false, // 上传
       }, // loading状态
       uploading: {
-        name: "JS从脱贫到脱发你好长啊",
+        name: "uploading!",
         percentage: 20,
         ing: false,
       }, // 当前上传文件状态
@@ -385,19 +388,21 @@ export default {
         upload: false, // 上传视图
       }, // 视图管理
       file: {
-        pid: "pid", // 父文件夹
-        id: "id", // 文件夹id
-        path: "path", // 文件路径
-        key: "key", // 关键字
+        // pid: "./", // 父文件夹
+        // id: "path", // 文件夹id
+        Parent: "./",
+        Path: "./", // 文件路径
+        key: "key words", // 关键字
       }, // 文件相关参数
       path: {
         level: 1, // 当前层级
         index: -1, // 在历史的第几步
         history: [
           {
-            path: "", // 文件夹名字
-            pid: "", // 路径
-            id: "", // 文件夹id
+            Path: "./", // 文件夹名字
+            Parent: "./",
+            // pid: "", // 路径
+            // id: "", // 文件夹id
             data: [], // 数据
           },
         ], // 历史路径
@@ -408,11 +413,16 @@ export default {
       tree_path: [], // 全部路径树数据
       move_selected: "", // 所选移动文件目标路径
       upload_selected: "", // 所选上传文件目标路径
-      uoload_data: {
-        pathId: null,
-        parentPathId: null,
+      upload_data: {
+        Path: null,
+        Parent: null,
+        FullName: null,
         isCurrentFolder: true,
       }, // 上传提交操作抛出的信息
+      // 预览文件类型
+      previewType: "img",
+      // 预览文件地址或配置项
+      previewOptions: null,
     };
   },
   props: {
@@ -443,7 +453,7 @@ export default {
     },
     // 文件表格数据
     data: Array,
-    // 文件表头数据【[参数：所有el-Table-column Attributes] (https://element.eleme.cn/#/zh-CN/component/table)】
+    // 文件表头数据
     columns: Array,
     /**
      * 配置项
@@ -470,7 +480,7 @@ export default {
     // 上传文件地址
     uploadUrl: {
       type: String,
-      default: "https://localhost:44322/api/cloudfiles/FileUpload",
+      default: "https://localhost:44322/api/cloudfiles/UploadCloudFile",
     },
     //  是否校验上传文件
     uploadReg: {
@@ -480,7 +490,15 @@ export default {
     // 上传文件前校验函数，应返回Boolean
     uploadRegFuc: Function,
     // 上传文件头参数
-    uploadHeaders: Object,
+    uploadHeaders: {
+      type: Object,
+      default: () => {
+        return {
+          Authorization:
+            "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjEyMzA2IiwibmJmIjoxNjMzNTAzMjExLCJleHAiOjE2MzQxMDgwMTEsImlhdCI6MTYzMzUwMzIxMX0.0x1NfXa4cCYMNUjSsiws12SthcNZr9GAqE6k0sUYoT4",
+        };
+      },
+    },
     // 上传文件参数
     uploadOptions: Object,
     // 上传个数限制
@@ -490,13 +508,7 @@ export default {
       type: Boolean,
       default: true,
     },
-    // 预览文件类型
-    previewType: {
-      type: String,
-      default: "img",
-    },
-    // 预览文件地址或配置项
-    previewOptions: Object,
+
     // 拼接路径配置项
     splicOptions: Object,
     size: {
@@ -525,7 +537,7 @@ export default {
         return;
       }
       // 当前文件夹 文件夹操作类型 新增文件夹回调（只用于历史存储）
-      console.log("this.file: ", this.file);
+      //   console.log("this.file: ", this.file);
       this.$emit("handleFolder", _act, type, this.file);
       this.closeUpload();
     },
@@ -564,7 +576,7 @@ export default {
       if (val === "wl-move") {
         this.showMoveList();
       } else if (val === "wl-download") {
-        this.wlDownload();
+        this.Download();
       }
     },
     // 显示文件路径输入框
@@ -577,7 +589,7 @@ export default {
     // 输入文件路径
     filePathChange(item) {
       if (!this.matched_path) {
-        this.$confirm.alert(
+        this.$confirm(
           `文件管理器内找不到"${this.file.path}"。请检查拼写并重试。`,
           "文件资源管理器",
           {
@@ -590,16 +602,14 @@ export default {
         );
         return;
       }
-      let _act_item = this.path.history.find(
-        (i) => i.id === item[this.selfProps.pathId]
-      );
+      //   debugger;
+      let _act_item = this.path.history.find((i) => i.Path === item.Path);
       if (_act_item) {
         this.routerActive(_act_item, _act_item.data);
       } else {
         this.routerPush({
-          id: item[this.selfProps.pathId],
-          pid: item[this.selfProps.pathPid],
-          path: item[this.selfProps.pathName],
+          Parent: item.Parent,
+          Path: item.Path,
         });
       }
 
@@ -612,7 +622,7 @@ export default {
         this.$emit("search", this.file, true);
         return;
       }
-      let _act_item = this.path.history.find((i) => i.id === this.file.id);
+      let _act_item = this.path.history.find((i) => i.Path === this.file.Path);
       _act_item
         ? this.routerActive(_act_item, _act_item.data)
         : this.$emit("search", this.file, true);
@@ -626,18 +636,18 @@ export default {
       console.log("enter router Push");
       console.log("file: ", file);
       console.log("data: ", data);
-      splicParentsUntil(this.allPath, file, this.selfProps);
-      this.clearSearchKey();
+      //   splicParentsUntil(this.allPath, file, this.selfProps);
+      //   this.clearSearchKey();
       this.path.history.push({
         ...file,
         data,
       });
       this.self_data = data;
       console.log("current data(path?): ", this.self_data);
-      this.file.pid = file.pid;
-      this.file.id = file.id;
-      this.file.path = splicParentsUntil(this.allPath, file, this.selfProps);
-      this.path.level = !file.id || file.id === guid ? 1 : 2;
+      this.file.Parent = file.Parent;
+      this.file.Path = file.Path;
+      //   this.file.path = splicParentsUntil(this.allPath, file, this.selfProps);
+      this.path.level = !file.Path || file.Path === root ? 1 : 2;
       this.path.index = -1; // 将步骤从新回到原位
     },
     /**
@@ -646,22 +656,33 @@ export default {
      * data: Array 当前路径下的数据
      */
     routerActive(file, data) {
-      this.clearSearchKey();
-      this.file.pid = file.pid;
-      this.file.id = file.id;
-      this.file.path = splicParentsUntil(this.allPath, file, this.selfProps);
+      //   this.clearSearchKey();
+      //   this.file.pid = file.pid;
+      //   this.file.Path = file.Path;
+      // * 激活的历史路径也需要push进history
+      this.path.history.push({
+        ...file,
+        data,
+      });
+      this.file.Parent = file.Parent;
+      this.file.Path = file.Path;
       this.self_data = data;
-      this.path.level = !file.id || file.id === guid ? 1 : 2;
+      this.path.level = !file.Path || file.Path === root ? 1 : 2; // TODO: for what?
     },
     /**
      * 手动更新历史记录的数据
-     * id 路径id
+     * Path 路径id
      * data 所有更新的此路径下的完整数据
      */
-    updateHistoryData(id, data) {
-      let _target = this.path.history.find((i) => i.id === id);
+    updateHistoryData(Path, data) {
+      let _target = this.path.history.find((i) => i.Path === Path);
       if (!_target) return;
       _target.data = data;
+    },
+    removeHistoryData(Path, file) {
+      let _target = this.path.history.find((i) => i.Path === Path);
+      if (!_target) return;
+      _target.data = _target.data.filter((i) => i.Path != file.Path);
     },
     // 显示可移动目录
     showMoveList() {
@@ -676,7 +697,7 @@ export default {
       this.layout.move = true;
     },
     // 显示下载
-    wlDownload() {
+    Download() {
       //! 此处处理下载请求，释放信号通知父组件APP处理下载操作，并传入选中文件与下载方法
       if (this.file_checked_data.length === 0) {
         this.$message({
@@ -686,11 +707,13 @@ export default {
         });
         return;
       }
+      console.log("this.file_checked_data: ", this.file_checked_data);
       //   console.log("file_checked_data: " + this.file_checked_data);
       this.$emit("download", this.file_checked_data, download);
     },
     // 前进后退按钮操作
     pathBtn(type) {
+      // * 文件浏览前进、后退、返回上级
       if (type === "prv") {
         if (this.pathIsStart) return;
         if (this.path.index === -1) {
@@ -698,6 +721,8 @@ export default {
         }
         this.path.index -= 1;
         let _prv = this.path.history[this.path.index];
+        // debugger;
+        // this.routerPush(_prv, _prv.data);
         this.routerActive(_prv, _prv.data);
       } else if (type === "next") {
         if (this.pathIsEnd) return;
@@ -706,23 +731,24 @@ export default {
         this.routerActive(_next, _next.data);
       } else {
         if (this.path.level === 1) return;
-        let _pid = this.file.pid !== guid ? this.file.pid : "";
-        let _parent_history = this.path.history.find((i) => i.id === _pid);
+        let parent = this.file.Parent !== root ? this.file.Parent : "";
+        let _parent_history = this.path.history.find((i) => i.Path === parent);
         if (_parent_history) {
           this.path.history.splice(
-            this.path.history.findIndex((i) => i.id === _pid),
+            this.path.history.findIndex((i) => i.Path === parent),
             1
           );
           this.routerPush(_parent_history, _parent_history.data);
           return;
         }
         // 历史记录没有时 从全部路径里找
-        let _parent = this.selfPathHistory.find((i) => i.id === _pid);
+        // debugger;
+        let _parent = this.selfPathHistory.find((i) => i.Path === parent);
         if (!_parent) return;
         this.routerPush({
-          id: _parent[this.selfProps.pathId],
-          pid: _parent[this.selfProps.pathPid],
-          path: _parent[this.selfProps.pathName],
+          //   id: _parent.Path,
+          Parent: _parent.Parent,
+          Path: _parent.Path,
         });
 
         this.$emit("search", this.file, true);
@@ -735,25 +761,26 @@ export default {
      */
     enterTheLower(row, isFolder) {
       //! #文件点击触发事件
+      //   debugger;
       console.log("触发文件文件夹点击事件: ", row);
       //   console.log("isFolder: ", isFolder);
       if (!isFolder) {
-        this.previewFile(row);
+        this.$emit("download", [row], (res, name) => {
+          var url = getUrl(res, name);
+          this.previewFile(row, url); // 文件预览！
+        });
         return;
       }
-      let _children = this.path.history.find(
-        (i) => i.id === row[this.selfProps.pathId]
-      );
+      //   debugger;
+      let _children = this.path.history.find((i) => i.Path === row.Path);
       if (_children) {
         // 历史找到子集时
         console.log(
           "find history of the folder, and delete form path history(?), and then routerPush"
         );
         this.path.history.splice(
-          //* splice 找到并删除？
-          this.path.history.findIndex(
-            (i) => i.id === row[this.selfProps.pathId]
-          ),
+          //* splice 找到并删除
+          this.path.history.findIndex((i) => i.Path === row.Path),
           1
         );
         this.routerPush(_children, _children.data);
@@ -762,20 +789,14 @@ export default {
       // 历史找不到子集时 请求更新
       console.log("can't find in history, routerPush new item");
       this.routerPush({
-        id: row[this.selfProps.pathId],
-        pid: row[this.selfProps.pathPid],
-        path: row[this.selfProps.pathName],
+        Path: row.Path,
+        Parent: row.Parent,
       });
-      console.log(
-        "then call for search the folder's content, true: ",
-        this.file
-      );
       this.$emit(
         "search",
         {
-          id: row[this.selfProps.pathId],
-          pid: row[this.selfProps.pathPid],
-          path: row[this.selfProps.pathName],
+          Path: row.Path,
+          Parent: row.Parent,
         },
         true
       );
@@ -794,10 +815,10 @@ export default {
     },
     // 显示上传界面
     showUpload() {
-      this.upload_selected = this.file.id;
-      this.uoload_data = {
-        parentPathId: this.file.pid,
-        pathId: this.file.id,
+      this.upload_selected = this.file.Path;
+      this.upload_data = {
+        Parent: this.file.Parent,
+        Path: this.file.Path,
         isCurrentFolder: true,
       };
       if (this.useUpload) {
@@ -813,17 +834,17 @@ export default {
     },
     // 文件上传路径修改
     uploadPathChange([val]) {
-      const pathId = val[this.selfProps.pathId];
-      this.uoload_data = {
-        parentPathId: val[this.selfProps.pathPid],
-        pathId,
-        isCurrentFolder: pathId == this.file.id,
+      const path = val.Path;
+      this.upload_data = {
+        Path: val.Path,
+        Parent: val.Parent,
+        // FullName: val.Name + "." + val.SuffixName,
+        isCurrentFolder: path == this.file.Path,
       };
     },
     // 文件上传提交操作
     saveUpload() {
-      //! 向父组件APP释放信号并传递：参数、需要执行的方法，上传文件
-      this.$emit("upload", this.uoload_data, this.handleUpload);
+      this.$emit("upload", this.upload_data, this.handleUpload);
     },
     // 手动上传文件
     handleUpload() {
@@ -844,15 +865,17 @@ export default {
       if (this.isLockFn) {
         _res_data.isLock = this.isLockFn(_res_data);
       }
-      if (this.explorer_upload_data.bizId === this.file.id) {
-        debugger;
+      // * 计算所在目录
+      var pathStack = _res_data.Path.split("/");
+      _res_data.Parent =
+        pathStack.length > 1 ? pathStack.slice(-2, -1)[0] : "./";
+      if (_res_data.Parent === this.file.Path) {
+        // debugger;
         this.self_data.push(_res_data); // 当前文件夹上传 当即展示 因对象引用 历史记录也会自动更改
         return;
       }
       // 非当前 如在历史记录里已有所选路径 则更新历史记录内的数据
-      let _act = this.path.history.find(
-        (i) => i.id === this.explorer_upload_data.bizId
-      );
+      let _act = this.path.history.find((i) => i.Path === _res_data.Parent);
       if (!_act) return;
       _act.data.push(_res_data);
     },
@@ -894,7 +917,7 @@ export default {
         return _path;
       }
       // 其他根据后缀类型
-      let _suffix = row[this.selfProps.suffix];
+      let _suffix = row.SuffixName;
       if (!_suffix) {
         _path = require("./images/file_none@3x.png");
         return _path;
@@ -940,7 +963,38 @@ export default {
       this.file.key = "";
     },
     // 预览文件
-    previewFile(row) {
+    previewFile(row, url) {
+      debugger;
+      var catagory = "";
+      this.previewOptions = {
+        url: url,
+      };
+      var _suffix = row.SuffixName;
+      if (this.usePreview) {
+        if (["jpg", "jpeg", "png", "gif", "bmp"].includes(_suffix)) {
+          // 图片
+          catagory = "img";
+        } else if (
+          ["avi", "mp4", "rmvb", "flv", "mov", "m2v", "mkv"].includes(_suffix)
+        ) {
+          catagory = "video";
+          this.previewOptions = {
+            sources: [
+              {
+                type: "video/mp4",
+                src: url,
+              },
+            ],
+          };
+        } else if (["mp3", "wav", "wmv", "wma"].includes(_suffix)) {
+          catagory = "audio";
+        } else {
+          catagory = "iframe";
+        }
+        this.previewType = catagory;
+        this.layout.view = true;
+        // this.$emit("closeFade");
+      }
       this.$emit("preview", row, this.showPreview);
       console.log("preview file " + row.Name + "." + row.SuffixName);
     },
@@ -950,9 +1004,23 @@ export default {
     },
     // 处理数据变动
     handleDataChange(val) {
-      console.log("handle data change funciton val: ", val);
       let _data = val || [];
-      console.log("this.isFolderFn: ", this.isFolderFn);
+      // 文件夹排在前面
+      var i = 0;
+      var j = _data.length - 1;
+      while (i < j) {
+        while (i < j && _data[i].Type == 1) {
+          i++;
+        }
+        while (i < j && _data[j].Type != 1) {
+          j--;
+        }
+        // swap
+        var temp = _data[i];
+        _data[i] = _data[j];
+        _data[j] = temp;
+      }
+      //   console.log("this.isFolderFn: ", this.isFolderFn);
       if (this.isFolderFn) {
         _data.forEach((i) => {
           i.isFolder = this.isFolderFn(i);
@@ -967,9 +1035,10 @@ export default {
         this.self_data = _data;
         return;
       }
-      let _act = this.path.history.find((i) => i.id === this.file.id);
+      let _act = this.path.history.find((i) => i.Path === this.file.Path);
       if (!_act) return;
       _act.data = _data;
+      //   debugger;
       this.routerActive(_act, _data);
     },
   },
@@ -998,7 +1067,7 @@ export default {
         name: "name", // String 用于显示名称列的字段
         suffix: "suffixName", // String 用于判断后缀或显示文件类型列的字段
         match: "name", // String 用于设定输入框自动补全的匹配字段
-        splic: true, // Boolean 用于设定输入框自动补全的匹配字段是否需要将match字段和祖先节点拼接
+        splic: false, // Boolean 用于设定输入框自动补全的匹配字段是否需要将match字段和祖先节点拼接
         pathName: "name", // String 路径数据 显示名称字段
         pathId: "id", // String 路径数据 id字段
         pathPid: "pid", // String 路径数据 pid字段
@@ -1013,7 +1082,7 @@ export default {
     // 自身移动 下拉框树 配置项
     selfMoveProps() {
       return {
-        label: this.selfProps.pathName,
+        label: this.selfProps.Path,
         children: this.selfProps.pathChildren,
         disabled: this.selfProps.pathDisabled,
       };
@@ -1028,27 +1097,29 @@ export default {
     },
     // 当前是否最后一步
     pathIsEnd() {
-      return (
-        this.path.history[this.path.history.length - 1].id === this.file.id
-      );
+      return this.path.index === this.path.history.length - 1;
     },
     // 当前是否最后一步
     pathIsStart() {
-      return this.path.history[0].id === this.file.id;
+      return this.path.index === 0;
     },
     // 自身文件路径输入框提示列表
     selfPathHistory() {
       let _all_path = this.allPath || [];
-      if (this.selfProps.splic) {
+      //   debugger;
+      if (false) {
+        //TODO:
         this.allPath.forEach((i) => {
-          i.id = i[this.selfProps.pathId];
+          i.id = i.Path;
           i.value = splicParentsUntil(_all_path, i, this.selfProps);
         });
       } else {
         this.allPath.forEach((i) => {
-          i.value = i[this.selfProps.match];
+          //   i.value = i[this.selfProps.match];
+          i.value = i.Path;
         });
       }
+      //   debugger;
       return this.allPath || this.path.history || [];
     },
     // 是否禁用编辑文件夹按钮
@@ -1067,25 +1138,13 @@ export default {
     // 检测所有路径，组成树
     allPath(val) {
       console.log("检测所有路径，组成树: ", val);
-      let options = {
-        // 用于变量名到属性名字符串的转换，传入arrayToTree，但目前不需要
-        id: this.selfProps.pathId,
-        pid: this.selfProps.pathPid,
-        children: this.selfProps.pathChildren,
-      };
       val.forEach((item) => {
-        // var pathStack = item.Path.split("/");
-        // item.id = pathStack.slice(-1)[0];
-        // item.pid = pathStack.length > 1 ? pathStack.slice(-2, -1)[0] : "./";
         //* 根据服务器返回的路径等数据，为文件添加其他相关属性
         var pathStack = item.Path.split("/");
-        //   item.Id = pathStack.slice(-1)[0]; // Id 就是Path
         item.Parent = pathStack.length > 1 ? pathStack.slice(-2, -1)[0] : "./";
       });
 
-      //   this.tree_path = arrayToTree(val || []);
       console.log("this.tree_path: ", this.tree_path);
-      //   this.tree_path = [];
     },
   },
   created() {

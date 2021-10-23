@@ -1,5 +1,5 @@
 <template>
-  <div id="app">
+  <div id="disk">
     <wlExplorer
       ref="wl-explorer-cpt"
       :header-dropdown="headerHandle"
@@ -17,6 +17,7 @@
       @search="fileSearch"
       @del="fileDel"
       @closeFade="closeOtherLayout(fade)"
+      @preview="preview"
     >
       <!-- 操作文件夹滑入区 -->
       <fadeIn v-show="fade.folder">
@@ -40,7 +41,7 @@
                 placeholder="请选择文件路径"
                 :props="tree_select_prop"
                 :data="tree_folder_list"
-                v-model="folder_form.ParentId"
+                v-model="folder_form.Parent"
               ></WlTreeSelect>
             </el-form-item>
             <el-form-item label="文件夹名称 " prop="Name">
@@ -80,14 +81,13 @@ import {
   getFileListApi, // 1获取文件夹列表
   getAllFoldersApi, // 4获取全部文件夹
   delFileApi, // 6删除文件|文件夹
-  testApi,
   downloadDataApi,
   addFolderApi,
 } from "@/api"; // 导入接口
 const apiok = 200;
 
 export default {
-  name: "app",
+  name: "disk",
   // App 组件调用的子组件（在template中以相应组件名标签的形式构成页面）
   components: {
     fadeIn,
@@ -200,13 +200,19 @@ export default {
       folder_form: {
         Path: "",
         Name: "",
+        Parent: "./",
         preview: [],
         handle: [],
         Describe: "",
       }, // 文件夹表单
       folder_rules: {
         ParentId: [
-          { required: true, message: "请选择文件路径", trigger: "blur" },
+          {
+            required: false,
+            message: "默认为根路径",
+            trigger: "blur",
+            default: "./",
+          },
         ],
         Name: [
           { required: true, message: "请填写文件夹名称", trigger: "blur" },
@@ -218,7 +224,7 @@ export default {
         children: "Children",
       }, // 树形下拉框配置项
       uploadOptions: {
-        path: "/",
+        path: "./",
       }, // 上传文件附加参数
     };
   },
@@ -229,14 +235,15 @@ export default {
      */
     fileUpload(file, cb) {
       // 设置文件上传连接的选项
-      this.uploadOptions.user = "Peng";
+      //   debugger;
+      this.uploadOptions.user = "Peng"; // TODO: 此处应为 current user
+      this.uploadOptions.path = "./";
       cb();
     },
     download(filePath, func) {
       //! 父组件APP只是打印子组件传递过来的数据与方法，并不执行
       console.log(filePath, func);
-      console.log("use download api");
-      // testApi(data).then(res => func(res));
+      console.log("use download api:", filePath);
       downloadDataApi(filePath[0].Path).then((res) =>
         func(res, filePath[0].Name)
       );
@@ -250,14 +257,16 @@ export default {
       if (update) {
         this.path = file;
         console.log("updated this.path in APP: ", this.path);
-        this.getFileList(file);
+        this.getFileList(file.Path);
       }
     },
     // 获取文件夹列表 //! 调用后端API获取文件列表数据
     getFileList(file) {
+      console.log("get file list: ", file);
       getFileListApi(file).then(({ data, status }) => {
         if (status === apiok) {
           this.file_table_data = data || [];
+          this.$refs["wl-explorer-cpt"].updateHistoryData(file, data);
           //   console.log("file_table_data: ", this.file_table_data);
         }
       });
@@ -277,8 +286,8 @@ export default {
       this.fade.folder = true;
       if (type === "add") {
         this.$refs["folder_form"].resetFields(); // 清除文件夹新建表单的数据
-        this.folder_form.Id = "";
-        this.folder_form.ParentId = file.Path;
+        this.folder_form.Path = "";
+        this.folder_form.Parent = file.Path;
         console.log("handle add folder");
         return;
       }
@@ -293,26 +302,33 @@ export default {
       console.log("submitFolderFrom");
       this.$refs[formName].validate((valid) => {
         if (valid) {
-          //console.log("form is valid!")
+          console.log("form is valid!");
           this.load.folder = true;
-          addFolderApi(this.folder_form).then((res) => {
+
+          console.log("this.folder_form: ", this.folder_form);
+          addFolderApi(
+            "./" + this.folder_form.Parent + "/" + this.folder_form.Name
+          ).then((res) => {
             this.load.folder = false;
             // let res_data = data.Data;
 
             //从文件夹创建表单获得的 this.folder_form
-            // TODO 向服务器请求添加文件夹
             let res_data = res; // 由表单数据模拟服务器返回数据，此处应有服务器返回对应实体
-
+            res_data.data.Parent = this.folder_form.Parent;
             // res_data.EditTime = res_data.CreateTime = "2019-11-11 11:11:11";
             // res_data.Type = 1;
             console.log("res_data", res_data);
             // console.log("this.folder_form", this.folder_form);
-            if (!this.folder_form.Id) {
+            if (!this.folder_form.Path) {
               // 新增
-              if (this.folder_form.Path === this.path.Path) {
+              if (this.folder_form.Parent === this.path.Path) {
                 // 新增到当前路径
                 console.log("新增到当前路径");
-                this.file_table_data.unshift(res_data);
+                this.file_table_data.unshift(res_data.data);
+                this.$refs["wl-explorer-cpt"].updateHistoryData(
+                  this.folder_form.Parent,
+                  res_data.data
+                );
               } else {
                 // 新增其他路径
                 console.log("新增其他路径");
@@ -322,7 +338,7 @@ export default {
                   path: res_data.Name,
                 };
                 this.$refs["wl-explorer-cpt"].updateHistoryData(
-                  { Id: res_data.ParentId },
+                  res_data.Parent,
                   [_new_data]
                 );
               }
@@ -350,12 +366,9 @@ export default {
       let cannot_del_data = []; // 收集不可删除数据
       let normal_data_file = []; // 收集可删除文件
       let normal_data_folder = []; // 收集可删除文件夹
+
       data.forEach((i) => {
-        i.RourceType !== this.rource_type.self
-          ? cannot_del_data.push(i) // 不可删除数据
-          : i.Type === this.type.folder
-          ? normal_data_folder.push(i.Id) // 可删除文件夹
-          : normal_data_file.push(i.Id); // 可删除文件
+        i.Type == 1 ? normal_data_folder.push(i) : normal_data_file.push(i);
       });
       // 不可删除数据进行提示
       if (cannot_del_data.length > 0) {
@@ -373,23 +386,28 @@ export default {
       }
       if (normal_data_folder.length === 0 && normal_data_file.length === 0)
         return;
-      // 可删除数据正常删除
-      let _data = {
-        FolderIds: normal_data_folder,
-        FolderFileIds: normal_data_file,
-      };
-      delFileApi(_data).then(({ data, status }) => {
+      var filesToDelete = [...normal_data_file, ...normal_data_folder];
+      delFileApi(filesToDelete).then(({ data, status }) => {
         if (status === apiok) {
+          // 从文件表格中删除成功删除的文件和文件夹
           this.file_table_data = this.file_table_data.filter(
-            (i) => ![...normal_data_file, ...normal_data_folder].includes(i.Id)
+            (i) => !data.map((i) => i.Path).includes(i.Path)
           );
+          console.log("this.file_table_data: ", this.file_table_data);
+          data.forEach((i) => {
+            this.$refs["wl-explorer-cpt"].removeHistoryData(i.Path, i);
+          });
+
           this.$message({
             showClose: true,
-            message: data.Message,
+            message: "删除成功",
             type: "success",
           });
         }
       });
+    },
+    preview(file) {
+      console.log("get preview file form disk: ", file);
     },
     // 获取所有文件夹
     getAllFolders() {
@@ -397,33 +415,23 @@ export default {
         if (status === apiok) {
           this.all_folder_list = data || [];
           this.all_folder_list.forEach((item) => {
-            // var pathStack = item.Path.split("/");
-            // item.id = pathStack.slice(-1)[0];
-            // item.pid = pathStack.length > 1 ? pathStack.slice(-2, -1)[0] : "./";
             //* 根据服务器返回的路径等数据，为文件添加其他相关属性
             var pathStack = item.Path.split("/");
             //   item.Id = pathStack.slice(-1)[0]; // Id 就是Path
             item.Parent =
               pathStack.length > 1 ? pathStack.slice(-2, -1)[0] : "./";
           });
+
           let _list = [...this.all_folder_list].filter(
             (item) => item.Type == 1
           );
-          //   let options = {
-          //     // 用于变量名到属性名字符串的转换，传入arrayToTree，但目前不需要
-          //     id: this.explorer_prop.pathId,
-          //     pid: this.explorer_prop.pathPid,
-          //     children: "Children",
-          //   };
-          //   debugger;
-
-          //   this.tree_folder_list = {
-          //     Path: "./",
-          //     Children: arrayToTree(_list),
-          //   };
-          debugger;
+          this.all_folder_list = _list.map((i) => {
+            return "./" + i.Parent + "/" + i.Name;
+          });
+          //   console.log("all_folder_list: ", this.all_folder_list);
           this.tree_folder_list = arrayToTree(_list);
-          console.log("this.tree_folder_list: ", this.tree_folder_list);
+          this.all_folder_list = this.tree_folder_list;
+          //   console.log("this.tree_folder_list: ", this.tree_folder_list);
         }
       });
     },
@@ -436,22 +444,23 @@ export default {
   // App 组件在创建时调用的函数
   created() {
     this.closeOtherLayout = closeOtherLayout;
+    // 获取文件信息
     this.getAllFolders();
-    this.getFileList();
+    this.getFileList("./");
   },
 };
 </script>
 
-<style>
-#app {
+<style scoped>
+#disk {
   font-family: "Avenir", Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: #2c3e50;
-  position: absolute;
+  position: relative;
   top: 0;
   left: 0;
-  padding: 25px;
+  padding: 0px;
   width: 100%;
   height: 100%;
   background: #f7f7f7;

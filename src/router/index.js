@@ -1,25 +1,45 @@
 import Vue from 'vue';
 import VueRouter from 'vue-router';
-import LoginComponent from '@/pages/login'
-import RegisterComponent from '@/pages/register'
-import HomeComponent from '@/pages/home'
+import LoginPage from '@/pages/login'
+import RegisterPage from '@/pages/register'
+import HomePage from '@/pages/home'
 import DiskComponent from '@/pages/disk'
+import NotFound from '@/pages/not-found'
+
+import DiskInfoComponent from '@/pages/disk-info'
+import UserComponent from '@/pages/settings'
 
 
 Vue.use(VueRouter)
 
 export default new VueRouter({
+    mode: "history",
     routes: [{
         path: '/login',
-        component: LoginComponent,
+        name: 'login',
+        component: LoginPage,
     }, {
         path: '/register',
-        component: RegisterComponent,
+        name: 'register',
+        component: RegisterPage,
     }, {
         path: '/home',
-        component: HomeComponent,
+        name: 'home',
+        component: HomePage,
+        props: true,
+        children: [{
+            path: '/disk',
+            name: 'disk',
+            component: DiskComponent
+        }, {
+            path: '/info',
+            component: DiskInfoComponent,
+        }, {
+            path: '/user',
+            component: UserComponent,
+        }]
     }, {
-        path: '/disk',
-        component: DiskComponent,
+        path: '*',
+        component: NotFound,
     }]
 });

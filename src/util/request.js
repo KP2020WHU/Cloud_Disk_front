@@ -7,7 +7,8 @@ const http = Axios.create({
     withCredentials: false, // 开启跨域身份凭证
     method: "get",
     headers: {
-        "Content-Type": "application/json;charset=UTF-8"
+        "Content-Type": "application/json;charset=UTF-8",
+        "Authorization": "Bearer " + localStorage.getItem("tocken")
     },
     timeout: 0 // request timeout
 });
@@ -29,10 +30,11 @@ http.interceptors.request.use(
 http.interceptors.response.use(
     function(res) {
         // Do something with response data
-        console.log("do something with the response: ", res);
+        // console.log("do something with the response: ", res);
         return res;
     },
     function(err) {
+        // return err;
         let config = err.config;
         let errres = err.response;
         let err_type = errres ? errres.status : 0;

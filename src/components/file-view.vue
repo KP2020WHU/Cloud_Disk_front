@@ -1,13 +1,33 @@
 <template>
   <div class="file-view" v-loading="loading">
     <!-- 视频播放器组件 -->
-    <videoPlayer class="player-item" v-if="selfType == 'video'" :options="selfOptions" @closeVideo="closePreview"></videoPlayer>
+    <videoPlayer
+      class="player-item"
+      v-if="selfType == 'video'"
+      :options="selfOptions"
+      @closeVideo="closePreview"
+    ></videoPlayer>
     <!-- 音频播放器 -->
-    <audio-player class="player-item" v-else-if="selfType == 'audio'" :url="selfOptions" @closeAudio="closePreview"></audio-player>
+    <audio-player
+      class="player-item"
+      v-else-if="selfType == 'audio'"
+      :url="selfOptions.url"
+      @closeAudio="closePreview"
+    ></audio-player>
     <!-- pdf预览组件 -->
-    <pdf-online class="player-item" v-else-if="selfType == 'iframe'" :pdfurl="selfOptions" @closePDF="closePreview"></pdf-online>
+    <pdf-online
+      class="player-item"
+      v-else-if="selfType == 'iframe'"
+      :pdfurl="selfOptions.url"
+      @closePDF="closePreview"
+    ></pdf-online>
     <!-- 图片预览 -->
-    <img-online  class="player-item" v-else-if="selfType == 'img'" :url="selfOptions" @closeImg="closePreview"></img-online>
+    <img-online
+      class="player-item"
+      v-else-if="selfType == 'img'"
+      :url="selfOptions.url"
+      @closeImg="closePreview"
+    ></img-online>
   </div>
 </template>
 
@@ -25,27 +45,27 @@ import pdfOnline from "./pdf-online"; // 导入pdf预览组件
 import imgOnline from "./img-online"; // 导入img预览组件
 
 export default {
-  data(){
+  data() {
     return {
       loading: false, // laod状态
       type: null, // 文件类型
       options: null, // 文件地址或配置项
-      show_preview: false // 是否显示文件预览
-    }
+      show_preview: false, // 是否显示文件预览
+    };
   },
-  props:{
+  props: {
     /**
      * 预览文件类型
      * video视频，audio音频，img图片，iframe其他可预览类型【txt,html,pdf】
      */
     previewType: {
       type: String,
-      default: 'img'
+      default: "img",
     },
     /**
      * 文件地址或配置项
      */
-    previewOptions: [Object, String],
+    previewOptions: { type: Object },
   },
   methods: {
     // 关闭预览
@@ -54,25 +74,27 @@ export default {
     },
   },
   computed: {
-    selfType(){
+    selfType() {
       return this.previewType;
     },
-    selfOptions(){
+    selfOptions() {
       return this.previewOptions;
-    }
+    },
   },
-  components: {videoPlayer, audioPlayer, pdfOnline, imgOnline}
-}
+  components: { videoPlayer, audioPlayer, pdfOnline, imgOnline },
+};
 </script>
 
 <style lang="scss">
-  .file-view{
-    z-index: 111;
-    
-    >.player-item{
-      position: static;
-      width: 100%;
-      height: 100%;
-    }
-  } 
+.file-view {
+  z-index: 111;
+  position: absolute;
+  height: 80%;
+
+  > .player-item {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+}
 </style>

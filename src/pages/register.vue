@@ -59,17 +59,6 @@ export default {
         return callback(new Error("账号不能为空"));
       }
       callback();
-      //   setTimeout(() => {
-      //     if (!Number.isInteger(value)) {
-      //       callback(new Error("请输入数字值"));
-      //     } else {
-      //       if (value < 18) {
-      //         callback(new Error("必须年满18岁"));
-      //       } else {
-      //         callback();
-      //       }
-      //     }
-      //   }, 1000);
     };
     var validatePass = (rule, value, callback) => {
       if (value === "") {

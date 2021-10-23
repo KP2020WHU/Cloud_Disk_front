@@ -46,6 +46,10 @@
 </template>
 
 <script>
+import {
+  AuthenticateApi, // 登录
+} from "@/api"; // 导入接口
+const apiok = 200;
 export default {
   name: "Login",
   data() {
@@ -72,7 +76,24 @@ export default {
       this.$refs[formName].validate((valid) => {
         if (valid) {
           //使用vue-router路由到指定界面，该方式称为编程式导航
-          this.$router.push("/disk");
+          AuthenticateApi(this.form.username, this.form.password).then(
+            ({ data, status }) => {
+              if (status === apiok) {
+                localStorage.setItem("tocken", data.Tocken);
+                localStorage.setItem("userId", data.UserId);
+                //   console.log("file_table_data: ", this.file_table_data);
+                this.$router.push({
+                  name: "disk",
+                });
+              } else {
+                this.$message({
+                  showClose: true,
+                  message: data,
+                  type: "warning",
+                });
+              }
+            }
+          );
         } else {
           this.dialogVisible = true;
           return false;
